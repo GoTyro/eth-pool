@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	//"sync/atomic"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -41,7 +41,7 @@ type ApiServer struct {
 	config              *ApiConfig
 	backend             *storage.RedisClient
 	hashrateWindow      time.Duration
-
+	stats               atomic.Value
 	miners              map[string]*Entry
 	minersMu            sync.RWMutex
 	statsIntv           time.Duration
