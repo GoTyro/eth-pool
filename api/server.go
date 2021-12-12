@@ -61,16 +61,16 @@ func (s *ApiServer) Start() {
 	if s.config.PurgeOnly {
 		log.Printf("Starting API in purge-only mode")
 	} else {
-		log.Printf("Starting API on %v", s.config.Listen)
+		log.Printf("启动API接口,侦听: %v", s.config.Listen)
 	}
 
 	s.statsIntv = util.MustParseDuration(s.config.StatsCollectInterval)
 	statsTimer := time.NewTimer(s.statsIntv)
-	log.Printf("Set stats collect interval to %v", s.statsIntv)
+	log.Printf("设置统计数据生成周期: %v", s.statsIntv)
 
 	purgeIntv := util.MustParseDuration(s.config.PurgeInterval)
 	purgeTimer := time.NewTimer(purgeIntv)
-	log.Printf("Set purge interval to %v", purgeIntv)
+	log.Printf("设置统计数据复位周期: %v", purgeIntv)
 
 	sort.Ints(s.config.LuckWindow)
 
@@ -111,7 +111,7 @@ func (s *ApiServer) listen() {
 	r.NotFoundHandler = http.HandlerFunc(notFound)
 	err := http.ListenAndServe(s.config.Listen, r)
 	if err != nil {
-		log.Fatalf("Failed to start API: %v", err)
+		log.Fatalf("启动API接口侦听失败,详情: %v", err)
 	}
 }
 
@@ -126,28 +126,28 @@ func (s *ApiServer) purgeStale() {
 	start := time.Now()
 	total, err := s.backend.FlushStaleStats(s.hashrateWindow, s.hashrateLargeWindow)
 	if err != nil {
-		log.Println("Failed to purge stale data from backend:", err)
+		log.Println("复位统计数据失败,详情: %v", err)
 	} else {
-		log.Printf("Purged stale stats from backend, %v shares affected, elapsed time %v", total, time.Since(start))
+		log.Printf("复位统计数据, 共计: %v shares, 用时: %v", total, time.Since(start))
 	}
 }
 
 func (s *ApiServer) collectStats() {
-	start := time.Now()
+	//start := time.Now()
 	stats, err := s.backend.CollectStats(s.hashrateWindow, s.config.Blocks, s.config.Payments)
 	if err != nil {
-		log.Printf("Failed to fetch stats from backend: %v", err)
+		log.Printf("获取统计数据失败,详情: %v", err)
 		return
 	}
 	if len(s.config.LuckWindow) > 0 {
 		stats["luck"], err = s.backend.CollectLuckStats(s.config.LuckWindow)
 		if err != nil {
-			log.Printf("Failed to fetch luck stats from backend: %v", err)
+			log.Printf("获取'幸运值'失败,详情: %v", err)
 			return
 		}
 	}
 	s.stats.Store(stats)
-	log.Printf("Stats collection finished %s", time.Since(start))
+	//log.Printf("获取统计数据成功,用时: %s", time.Since(start))
 }
 
 func (s *ApiServer) StatsIndex(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +159,7 @@ func (s *ApiServer) StatsIndex(w http.ResponseWriter, r *http.Request) {
 	reply := make(map[string]interface{})
 	nodes, err := s.backend.GetNodeStates()
 	if err != nil {
-		log.Printf("Failed to get nodes stats from backend: %v", err)
+		log.Printf("获取矿池统计数据失败,详情: %v", err)
 	}
 	reply["nodes"] = nodes
 
@@ -176,7 +176,7 @@ func (s *ApiServer) StatsIndex(w http.ResponseWriter, r *http.Request) {
 
 	err = json.NewEncoder(w).Encode(reply)
 	if err != nil {
-		log.Println("Error serializing API response: ", err)
+		log.Println("数据解码失败,详情: %v", err)
 	}
 }
 
@@ -197,7 +197,7 @@ func (s *ApiServer) MinersIndex(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewEncoder(w).Encode(reply)
 	if err != nil {
-		log.Println("Error serializing API response: ", err)
+		log.Println("数据解码失败,详情: %v", err)
 	}
 }
 
@@ -221,7 +221,7 @@ func (s *ApiServer) BlocksIndex(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewEncoder(w).Encode(reply)
 	if err != nil {
-		log.Println("Error serializing API response: ", err)
+		log.Println("数据解码失败,详情: %v", err)
 	}
 }
 
@@ -240,7 +240,7 @@ func (s *ApiServer) PaymentsIndex(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewEncoder(w).Encode(reply)
 	if err != nil {
-		log.Println("Error serializing API response: ", err)
+		log.Println("数据解码失败,详情: %v", err)
 	}
 }
 
@@ -265,20 +265,20 @@ func (s *ApiServer) AccountIndex(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			log.Printf("Failed to fetch stats from backend: %v", err)
+			log.Printf("获取统计数据失败,详情: %v", err)
 			return
 		}
 
 		stats, err := s.backend.GetMinerStats(login, s.config.Payments)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			log.Printf("Failed to fetch stats from backend: %v", err)
+			log.Printf("获取统计数据失败,详情: %v", err)
 			return
 		}
 		workers, err := s.backend.CollectWorkersStats(s.hashrateWindow, s.hashrateLargeWindow, login)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			log.Printf("Failed to fetch stats from backend: %v", err)
+			log.Printf("获取统计数据失败,详情: %v", err)
 			return
 		}
 		for key, value := range workers {
@@ -292,7 +292,7 @@ func (s *ApiServer) AccountIndex(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	err := json.NewEncoder(w).Encode(reply.stats)
 	if err != nil {
-		log.Println("Error serializing API response: ", err)
+		log.Println("数据解码失败,详情: %v", err)
 	}
 }
 

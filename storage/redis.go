@@ -272,7 +272,7 @@ func join(args ...interface{}) string {
 				s[i] = "0"
 			}
 		default:
-			panic("Invalid type specified for conversion")
+			panic("未知数据格式")
 		}
 	}
 	return strings.Join(s, ":")

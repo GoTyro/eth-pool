@@ -29,7 +29,7 @@ func (s *ProxyServer) handleLoginRPC(cs *Session, params []string, id string) (b
 	}
 	cs.login = login
 	s.registerSession(cs)
-	log.Printf("Stratum miner connected %v@%v", login, cs.ip)
+	log.Printf("矿工连接成功,账户: %v,IP: %v", login, cs.ip)
 	return true, nil
 }
 
@@ -59,13 +59,13 @@ func (s *ProxyServer) handleSubmitRPC(cs *Session, login, id string, params []st
 	}
 	if len(params) != 3 {
 		s.policy.ApplyMalformedPolicy(cs.ip)
-		log.Printf("Malformed params from %s@%s %v", login, cs.ip, params)
+		log.Printf("矿工提交无效参数,账户: %s,IP: %s,参数: %v", login, cs.ip, params)
 		return false, &ErrorReply{Code: -1, Message: "Invalid params"}
 	}
 
 	if !noncePattern.MatchString(params[0]) || !hashPattern.MatchString(params[1]) || !hashPattern.MatchString(params[2]) {
 		s.policy.ApplyMalformedPolicy(cs.ip)
-		log.Printf("Malformed PoW result from %s@%s %v", login, cs.ip, params)
+		log.Printf("矿工提交异常PoW信息,账户: %s,IP: %s,参数: %v", login, cs.ip, params)
 		return false, &ErrorReply{Code: -1, Message: "Malformed PoW result"}
 	}
 	t := s.currentBlockTemplate()
@@ -73,22 +73,22 @@ func (s *ProxyServer) handleSubmitRPC(cs *Session, login, id string, params []st
 	ok := s.policy.ApplySharePolicy(cs.ip, !exist && validShare)
 
 	if exist {
-		log.Printf("Duplicate share from %s@%s %v", login, cs.ip, params)
+		log.Printf("矿工提交重复份额,账户: %s,IP: %s,参数: %v", login, cs.ip, params)
 		return false, &ErrorReply{Code: 22, Message: "Duplicate share"}
 	}
 
 	if !validShare {
-		log.Printf("Invalid share from %s@%s", login, cs.ip)
+		log.Printf("矿工提交无效份额,账户: %s,IP: %s", login, cs.ip)
 		// Bad shares limit reached, return error and close
 		if !ok {
 			return false, &ErrorReply{Code: 23, Message: "Invalid share"}
 		}
 		return false, nil
 	}
-	log.Printf("Valid share from %s@%s", login, cs.ip)
+	//log.Printf("有效份额,账户: %s,IP: %s", login, cs.ip)
 
 	if !ok {
-		return true, &ErrorReply{Code: -1, Message: "High rate of invalid shares"}
+		return true, &ErrorReply{Code: -1, Message: "已验证的高收益份额"}
 	}
 	return true, nil
 }
@@ -103,7 +103,7 @@ func (s *ProxyServer) handleGetBlockByNumberRPC() *rpc.GetBlockReplyPart {
 }
 
 func (s *ProxyServer) handleUnknownRPC(cs *Session, m string) *ErrorReply {
-	log.Printf("Unknown request method %s from %s", m, cs.ip)
+	log.Printf("矿工提交无效请求,IP: %s ,请求: %s", cs.ip, m)
 	s.policy.ApplyMalformedPolicy(cs.ip)
 	return &ErrorReply{Code: -3, Message: "Method not found"}
 }

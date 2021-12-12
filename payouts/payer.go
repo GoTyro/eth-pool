@@ -57,7 +57,7 @@ func NewPayoutsProcessor(cfg *PayoutsConfig, backend *storage.RedisClient) *Payo
 }
 
 func (u *PayoutsProcessor) Start() {
-	log.Println("Starting payouts")
+	log.Println("启动支付程序")
 
 	if u.mustResolvePayout() {
 		log.Println("Running with env RESOLVE_PAYOUT=1, now trying to resolve locked payouts")
@@ -68,7 +68,7 @@ func (u *PayoutsProcessor) Start() {
 
 	intv := util.MustParseDuration(u.config.Interval)
 	timer := time.NewTimer(intv)
-	log.Printf("Set payouts interval to %v", intv)
+	log.Printf("设置支付程序付款周期: %v", intv)
 
 	payments := u.backend.GetPendingPayments()
 	if len(payments) > 0 {
@@ -79,11 +79,11 @@ func (u *PayoutsProcessor) Start() {
 
 	locked, err := u.backend.IsPayoutsLocked()
 	if err != nil {
-		log.Println("Unable to start payouts:", err)
+		log.Println("启动支付程序失败,详情: %s", err)
 		return
 	}
 	if locked {
-		log.Println("Unable to start payouts because they are locked")
+		log.Println("存在已运行的支付程序,启动失败")
 		return
 	}
 
@@ -104,7 +104,7 @@ func (u *PayoutsProcessor) Start() {
 
 func (u *PayoutsProcessor) process() {
 	if u.halt {
-		log.Println("Payments suspended due to last critical error:", u.lastFail)
+		log.Println("支付程序出错,任务已暂停,详情: %v", u.lastFail)
 		return
 	}
 	mustPay := 0
@@ -112,7 +112,7 @@ func (u *PayoutsProcessor) process() {
 	totalAmount := big.NewInt(0)
 	payees, err := u.backend.GetPayees()
 	if err != nil {
-		log.Println("Error while retrieving payees from backend:", err)
+		log.Println("获取待付款的账户列表失败,详情: %v", err)
 		return
 	}
 
@@ -145,7 +145,7 @@ func (u *PayoutsProcessor) process() {
 			break
 		}
 		if poolBalance.Cmp(amountInWei) < 0 {
-			err := fmt.Errorf("Not enough balance for payment, need %s Wei, pool has %s Wei",
+			err := fmt.Errorf("支付失败,需要: %s Wei,现有: %s Wei",
 				amountInWei.String(), poolBalance.String())
 			u.halt = true
 			u.lastFail = err
@@ -155,17 +155,17 @@ func (u *PayoutsProcessor) process() {
 		// Lock payments for current payout
 		err = u.backend.LockPayouts(login, amount)
 		if err != nil {
-			log.Printf("Failed to lock payment for %s: %v", login, err)
+			log.Printf("锁定支付账户失败,账户: %s,详情: %v", login, err)
 			u.halt = true
 			u.lastFail = err
 			break
 		}
-		log.Printf("Locked payment for %s, %v Shannon", login, amount)
+		log.Printf("锁定支付账户失败,账户: %s,余额: %v", login, amount)
 
 		// Debit miner's balance and update stats
 		err = u.backend.UpdateBalance(login, amount)
 		if err != nil {
-			log.Printf("Failed to update balance for %s, %v Shannon: %v", login, amount, err)
+			log.Printf("更新账户余额失败,账户: %s,余额: %v,详情: %v", login, amount, err)
 			u.halt = true
 			u.lastFail = err
 			break
@@ -218,7 +218,7 @@ func (u *PayoutsProcessor) process() {
 	if mustPay > 0 {
 		log.Printf("Paid total %v Shannon to %v of %v payees", totalAmount, minersPaid, mustPay)
 	} else {
-		log.Println("No payees that have reached payout threshold")
+		log.Println("没有待转账的账户")
 	}
 
 	// Save redis state to disk
@@ -230,7 +230,7 @@ func (u *PayoutsProcessor) process() {
 func (self PayoutsProcessor) isUnlockedAccount() bool {
 	_, err := self.rpc.Sign(self.config.Address, "0x0")
 	if err != nil {
-		log.Println("Unable to process payouts:", err)
+		log.Println("无法处理付款,详情: %s", err)
 		return false
 	}
 	return true

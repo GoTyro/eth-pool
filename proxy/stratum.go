@@ -22,15 +22,15 @@ func (s *ProxyServer) ListenTCP() {
 
 	addr, err := net.ResolveTCPAddr("tcp", s.config.Proxy.Stratum.Listen)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		log.Fatalf("启动矿池服务端失败,详情: %v", err)
 	}
 	server, err := net.ListenTCP("tcp", addr)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		log.Fatalf("启动矿池服务端失败,详情: %v", err)
 	}
 	defer server.Close()
 
-	log.Printf("Stratum listening on %s", s.config.Proxy.Stratum.Listen)
+	log.Printf("启动矿池服务端,侦听: %s", s.config.Proxy.Stratum.Listen)
 	var accept = make(chan int, s.config.Proxy.Stratum.MaxConn)
 	n := 0
 
@@ -70,15 +70,15 @@ func (s *ProxyServer) handleTCPClient(cs *Session) error {
 	for {
 		data, isPrefix, err := connbuff.ReadLine()
 		if isPrefix {
-			log.Printf("Socket flood detected from %s", cs.ip)
+			log.Printf("客户端连接频率异常,IP: %s", cs.ip)
 			s.policy.BanClient(cs.ip)
 			return err
 		} else if err == io.EOF {
-			log.Printf("Client %s disconnected", cs.ip)
+			log.Printf("客户端断开连接,IP: %s", cs.ip)
 			s.removeSession(cs)
 			break
 		} else if err != nil {
-			log.Printf("Error reading from socket: %v", err)
+			log.Printf("客户端通信失败,IP: %s,详情: %v", cs.ip, err)
 			return err
 		}
 
@@ -87,7 +87,7 @@ func (s *ProxyServer) handleTCPClient(cs *Session) error {
 			err = json.Unmarshal(data, &req)
 			if err != nil {
 				s.policy.ApplyMalformedPolicy(cs.ip)
-				log.Printf("Malformed stratum request from %s: %v", cs.ip, err)
+				log.Printf("客户端异常请求数据,IP: %s,详情: %v", cs.ip, err)
 				return err
 			}
 			s.setDeadline(cs.conn)
@@ -107,7 +107,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		var params []string
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil {
-			log.Println("Malformed stratum request params from", cs.ip)
+			log.Println("客户端异常submitLogin请求数据,IP: %s", cs.ip)
 			return err
 		}
 		reply, errReply := s.handleLoginRPC(cs, params, req.Worker)
@@ -125,7 +125,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		var params []string
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil {
-			log.Println("Malformed stratum request params from", cs.ip)
+			log.Println("客户端异常submitWork请求数据,IP: %s", cs.ip)
 			return err
 		}
 		reply, errReply := s.handleTCPSubmitRPC(cs, req.Worker, params)
@@ -195,10 +195,10 @@ func (s *ProxyServer) broadcastNewJobs() {
 	s.sessionsMu.RLock()
 	defer s.sessionsMu.RUnlock()
 
-	count := len(s.sessions)
-	log.Printf("Broadcasting new job to %v stratum miners", count)
+	//count := len(s.sessions)
+	//log.Printf("发送挖矿任务给 %v 个旷工", count)
 
-	start := time.Now()
+	//start := time.Now()
 	bcast := make(chan int, 1024)
 	n := 0
 
@@ -210,12 +210,12 @@ func (s *ProxyServer) broadcastNewJobs() {
 			err := cs.pushNewJob(&reply)
 			<-bcast
 			if err != nil {
-				log.Printf("Job transmit error to %v@%v: %v", cs.login, cs.ip, err)
+				log.Printf("挖矿任务发送失败,账户: %v,IP: %v,详情: %v", cs.login, cs.ip, err)
 				s.removeSession(cs)
 			} else {
 				s.setDeadline(cs.conn)
 			}
 		}(m)
 	}
-	log.Printf("Jobs broadcast finished %s", time.Since(start))
+	//log.Printf("挖矿任务发送完毕,耗时: %s", time.Since(start))
 }

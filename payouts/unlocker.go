@@ -43,10 +43,10 @@ type BlockUnlocker struct {
 
 func NewBlockUnlocker(cfg *UnlockerConfig, backend *storage.RedisClient) *BlockUnlocker {
 	if len(cfg.PoolFeeAddress) != 0 && !util.IsValidHexAddress(cfg.PoolFeeAddress) {
-		log.Fatalln("Invalid poolFeeAddress", cfg.PoolFeeAddress)
+		log.Fatalln("未设置矿池抽水收益地址", cfg.PoolFeeAddress)
 	}
 	if cfg.Depth < minDepth*2 {
-		log.Fatalf("Block maturity depth can't be < %v, your depth is %v", minDepth*2, cfg.Depth)
+		log.Fatalf("挖矿深度不能小于: %v,当前设置为: %v", minDepth*2, cfg.Depth)
 	}
 	if cfg.ImmatureDepth < minDepth {
 		log.Fatalf("Immature depth can't be < %v, your depth is %v", minDepth, cfg.ImmatureDepth)
@@ -57,10 +57,10 @@ func NewBlockUnlocker(cfg *UnlockerConfig, backend *storage.RedisClient) *BlockU
 }
 
 func (u *BlockUnlocker) Start() {
-	log.Println("Starting block unlocker")
+	log.Println("启动未成熟区块解锁程序")
 	intv := util.MustParseDuration(u.config.Interval)
 	timer := time.NewTimer(intv)
-	log.Printf("Set block unlock interval to %v", intv)
+	log.Printf("设置区块解锁周期: %v", intv)
 
 	// Immediately unlock after start
 	u.unlockPendingBlocks()
@@ -131,7 +131,7 @@ func (u *BlockUnlocker) unlockCandidates(candidates []*storage.BlockData) (*Unlo
 					return nil, err
 				}
 				result.maturedBlocks = append(result.maturedBlocks, candidate)
-				log.Printf("Mature block %v with %v tx, hash: %v", candidate.Height, len(block.Transactions), candidate.Hash[0:10])
+				log.Printf("成熟区块: %v,已有 %v 个交易,hash: %v", candidate.Height, len(block.Transactions), candidate.Hash[0:10])
 				break
 			}
 
@@ -244,7 +244,7 @@ func handleUncle(height int64, uncle *rpc.GetBlockReply, candidate *storage.Bloc
 
 func (u *BlockUnlocker) unlockPendingBlocks() {
 	if u.halt {
-		log.Println("Unlocking suspended due to last critical error:", u.lastFail)
+		log.Println("区块解锁程序出错,任务已暂停,详情: %v", u.lastFail)
 		return
 	}
 
@@ -252,14 +252,14 @@ func (u *BlockUnlocker) unlockPendingBlocks() {
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Unable to get current blockchain height from node: %v", err)
+		log.Printf("获取当前最新区块高度失败,详情: %v", err)
 		return
 	}
 	currentHeight, err := strconv.ParseInt(strings.Replace(current.Number, "0x", "", -1), 16, 64)
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Can't parse pending block number: %v", err)
+		log.Printf("获取区块高度失败,详情: %v", err)
 		return
 	}
 
@@ -267,12 +267,12 @@ func (u *BlockUnlocker) unlockPendingBlocks() {
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Failed to get block candidates from backend: %v", err)
+		log.Printf("获取待解锁区块失败,详情: %v", err)
 		return
 	}
 
 	if len(candidates) == 0 {
-		log.Println("No block candidates to unlock")
+		log.Println("没有待解锁的区块")
 		return
 	}
 
@@ -280,7 +280,7 @@ func (u *BlockUnlocker) unlockPendingBlocks() {
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Failed to unlock blocks: %v", err)
+		log.Printf("解锁区块失败,详情: %v", err)
 		return
 	}
 	log.Printf("Immature %v blocks, %v uncles, %v orphans", result.blocks, result.uncles, result.orphans)

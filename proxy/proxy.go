@@ -48,7 +48,7 @@ type Session struct {
 
 func NewProxy(cfg *Config, backend *storage.RedisClient) *ProxyServer {
 	if len(cfg.Name) == 0 {
-		log.Fatal("You must set instance name")
+		log.Fatal("配置文件未配置'name'主键")
 	}
 	policy := policy.Start(&cfg.Proxy.Policy, backend)
 
@@ -58,9 +58,9 @@ func NewProxy(cfg *Config, backend *storage.RedisClient) *ProxyServer {
 	proxy.upstreams = make([]*rpc.RPCClient, len(cfg.Upstream))
 	for i, v := range cfg.Upstream {
 		proxy.upstreams[i] = rpc.NewRPCClient(v.Name, v.Url, v.Timeout)
-		log.Printf("Upstream: %s => %s", v.Name, v.Url)
+		log.Printf("读取矿池配置: %s => %s", v.Name, v.Url)
 	}
-	log.Printf("Default upstream: %s => %s", proxy.rpc().Name, proxy.rpc().Url)
+	log.Printf("设置默认矿池连接: %s => %s", proxy.rpc().Name, proxy.rpc().Url)
 
 	if cfg.Proxy.Stratum.Enabled {
 		proxy.sessions = make(map[*Session]struct{})
@@ -73,7 +73,7 @@ func NewProxy(cfg *Config, backend *storage.RedisClient) *ProxyServer {
 
 	refreshIntv := util.MustParseDuration(cfg.Proxy.BlockRefreshInterval)
 	refreshTimer := time.NewTimer(refreshIntv)
-	log.Printf("Set block refresh every %v", refreshIntv)
+	log.Printf("设置区块刷新周期: %v", refreshIntv)
 
 	checkIntv := util.MustParseDuration(cfg.UpstreamCheckInterval)
 	checkTimer := time.NewTimer(checkIntv)
@@ -109,7 +109,7 @@ func NewProxy(cfg *Config, backend *storage.RedisClient) *ProxyServer {
 				if t != nil {
 					err := backend.WriteNodeState(cfg.Name, t.Height, t.Difficulty)
 					if err != nil {
-						log.Printf("Failed to write node state to backend: %v", err)
+						log.Printf("保存矿池统计数据失败,详情: %v", err)
 						proxy.markSick()
 					} else {
 						proxy.markOk()
@@ -124,7 +124,7 @@ func NewProxy(cfg *Config, backend *storage.RedisClient) *ProxyServer {
 }
 
 func (s *ProxyServer) Start() {
-	log.Printf("Starting proxy on %v", s.config.Proxy.Listen)
+	log.Printf("启动矿池代端,侦听: %v", s.config.Proxy.Listen)
 	r := mux.NewRouter()
 	r.Handle("/{login:0x[0-9a-fA-F]{40}}/{id:[0-9a-zA-Z-_]{1,8}}", s)
 	r.Handle("/{login:0x[0-9a-fA-F]{40}}", s)
@@ -135,7 +135,7 @@ func (s *ProxyServer) Start() {
 	}
 	err := srv.ListenAndServe()
 	if err != nil {
-		log.Fatalf("Failed to start proxy: %v", err)
+		log.Fatalf("矿池代理端启动失败,详情: %v", err)
 	}
 }
 
@@ -156,14 +156,14 @@ func (s *ProxyServer) checkUpstreams() {
 	}
 
 	if s.upstream != candidate {
-		log.Printf("Switching to %v upstream", s.upstreams[candidate].Name)
+		log.Printf("矿池连接失败,已切换到: %v", s.upstreams[candidate].Name)
 		atomic.StoreInt32(&s.upstream, candidate)
 	}
 }
 
 func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		s.writeError(w, 405, "rpc: POST method required, received "+r.Method)
+		s.writeError(w, 405, "错误请求类型,限定请求类型:POST,当前请求类型:"+r.Method)
 		return
 	}
 	ip := s.remoteAddr(r)
@@ -185,9 +185,9 @@ func (s *ProxyServer) remoteAddr(r *http.Request) string {
 
 func (s *ProxyServer) handleClient(w http.ResponseWriter, r *http.Request, ip string) {
 	if r.ContentLength > s.config.Proxy.LimitBodySize {
-		log.Printf("Socket flood from %s", ip)
+		log.Printf("客户端请求过于频繁,IP: %s", ip)
 		s.policy.ApplyMalformedPolicy(ip)
-		http.Error(w, "Request too large", http.StatusExpectationFailed)
+		http.Error(w, "客户端请求数据超出限制", http.StatusExpectationFailed)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, s.config.Proxy.LimitBodySize)
@@ -200,7 +200,7 @@ func (s *ProxyServer) handleClient(w http.ResponseWriter, r *http.Request, ip st
 		if err := dec.Decode(&req); err == io.EOF {
 			break
 		} else if err != nil {
-			log.Printf("Malformed request from %v: %v", ip, err)
+			log.Printf("客户端请求异常,IP: %v,详情: %v", ip, err)
 			s.policy.ApplyMalformedPolicy(ip)
 			return
 		}
@@ -210,7 +210,7 @@ func (s *ProxyServer) handleClient(w http.ResponseWriter, r *http.Request, ip st
 
 func (cs *Session) handleMessage(s *ProxyServer, r *http.Request, req *JSONRpcReq) {
 	if req.Id == nil {
-		log.Printf("Missing RPC id from %s", cs.ip)
+		log.Printf("客户端断开连接: %s", cs.ip)
 		s.policy.ApplyMalformedPolicy(cs.ip)
 		return
 	}
@@ -219,12 +219,12 @@ func (cs *Session) handleMessage(s *ProxyServer, r *http.Request, req *JSONRpcRe
 	login := strings.ToLower(vars["login"])
 
 	if !util.IsValidHexAddress(login) {
-		errReply := &ErrorReply{Code: -1, Message: "Invalid login"}
+		errReply := &ErrorReply{Code: -1, Message: "登录失败"}
 		cs.sendError(req.Id, errReply)
 		return
 	}
 	if !s.policy.ApplyLoginPolicy(login, cs.ip) {
-		errReply := &ErrorReply{Code: -1, Message: "You are blacklisted"}
+		errReply := &ErrorReply{Code: -1, Message: "您已被禁止连接"}
 		cs.sendError(req.Id, errReply)
 		return
 	}
@@ -243,7 +243,7 @@ func (cs *Session) handleMessage(s *ProxyServer, r *http.Request, req *JSONRpcRe
 			var params []string
 			err := json.Unmarshal(req.Params, &params)
 			if err != nil {
-				log.Printf("Unable to parse params from %v", cs.ip)
+				log.Printf("客户端提交数据解析失败,IP: %v", cs.ip)
 				s.policy.ApplyMalformedPolicy(cs.ip)
 				break
 			}
@@ -255,7 +255,7 @@ func (cs *Session) handleMessage(s *ProxyServer, r *http.Request, req *JSONRpcRe
 			cs.sendResult(req.Id, &reply)
 		} else {
 			s.policy.ApplyMalformedPolicy(cs.ip)
-			errReply := &ErrorReply{Code: -1, Message: "Malformed request"}
+			errReply := &ErrorReply{Code: -1, Message: "异常请求"}
 			cs.sendError(req.Id, errReply)
 		}
 	case "eth_getBlockByNumber":

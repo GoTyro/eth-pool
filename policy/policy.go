@@ -78,11 +78,11 @@ func Start(cfg *Config, storage *storage.RedisClient) *PolicyServer {
 
 	resetIntv := util.MustParseDuration(s.config.ResetInterval)
 	resetTimer := time.NewTimer(resetIntv)
-	log.Printf("Set policy stats reset every %v", resetIntv)
+	log.Printf("设置IP黑白名单策略重置周期: %v", resetIntv)
 
 	refreshIntv := util.MustParseDuration(s.config.RefreshInterval)
 	refreshTimer := time.NewTimer(refreshIntv)
-	log.Printf("Set policy state refresh every %v", refreshIntv)
+	log.Printf("设置IP黑白名单策略刷新周期: %v", refreshIntv)
 
 	go func() {
 		for {
@@ -100,7 +100,7 @@ func Start(cfg *Config, storage *storage.RedisClient) *PolicyServer {
 	for i := 0; i < s.config.Workers; i++ {
 		s.startPolicyWorker()
 	}
-	log.Printf("Running with %v policy workers", s.config.Workers)
+	log.Printf("启动IP黑白名单策略,线程数量: %v", s.config.Workers)
 	return s
 }
 
@@ -129,7 +129,7 @@ func (s *PolicyServer) resetStats() {
 		if now-bannedAt >= banningTimeout {
 			atomic.StoreInt64(&m.BannedAt, 0)
 			if atomic.CompareAndSwapInt32(&m.Banned, 1, 0) {
-				log.Printf("Ban dropped for %v", key)
+				log.Printf("删除已到期IP黑白名单: %v", key)
 				delete(s.stats, key)
 				total++
 			}
@@ -139,7 +139,7 @@ func (s *PolicyServer) resetStats() {
 			total++
 		}
 	}
-	log.Printf("Flushed stats for %v IP addresses", total)
+	log.Printf("刷新IP黑白名单策略: %v 条", total)
 }
 
 func (s *PolicyServer) refreshState() {
@@ -149,13 +149,13 @@ func (s *PolicyServer) refreshState() {
 
 	s.blacklist, err = s.storage.GetBlacklist()
 	if err != nil {
-		log.Printf("Failed to get blacklist from backend: %v", err)
+		log.Printf("获取黑名单IP列表失败,错误: %v", err)
 	}
 	s.whitelist, err = s.storage.GetWhitelist()
 	if err != nil {
-		log.Printf("Failed to get whitelist from backend: %v", err)
+		log.Printf("获取白名单IP列表失败,错误: %v", err)
 	}
-	log.Println("Policy state refresh complete")
+	log.Println("IP黑白名单策略刷新成功")
 }
 
 func (s *PolicyServer) NewStats() *Stats {
@@ -267,7 +267,7 @@ func (s *PolicyServer) forceBan(x *Stats, ip string) {
 		if len(s.config.Banning.IPSet) > 0 {
 			s.banChannel <- ip
 		} else {
-			log.Println("Banned peer", ip)
+			log.Println("拦截黑名单IP连接,IP: %v", ip)
 		}
 	}
 }
@@ -298,16 +298,16 @@ func (s *PolicyServer) InWhiteList(ip string) bool {
 
 func (s *PolicyServer) doBan(ip string) {
 	set, timeout := s.config.Banning.IPSet, s.config.Banning.Timeout
-	cmd := fmt.Sprintf("sudo ipset add %s %s timeout %v -!", set, ip, timeout)
+	cmd := fmt.Sprintf("添加黑名单IP,线程ID: %s,IP: %s,拦截时间: %v", set, ip, timeout)
 	args := strings.Fields(cmd)
 	head := args[0]
 	args = args[1:]
 
-	log.Printf("Banned %v with timeout %v on ipset %s", ip, timeout, set)
+	log.Printf("拦截IP: %v,拦截时间: %v,线程ID: %s", ip, timeout, set)
 
 	_, err := exec.Command(head, args...).Output()
 	if err != nil {
-		log.Printf("CMD Error: %s", err)
+		log.Printf("脚本执行失败,错误: %s", err)
 	}
 }
 

@@ -51,12 +51,12 @@ func (s *ProxyServer) fetchBlockTemplate() {
 	t := s.currentBlockTemplate()
 	pendingReply, height, diff, err := s.fetchPendingBlock()
 	if err != nil {
-		log.Printf("Error while refreshing pending block on %s: %s", rpc.Name, err)
+		log.Printf("获取待确认区块失败,矿池链接: %s,错误: %s", rpc.Name, err)
 		return
 	}
 	reply, err := rpc.GetWork()
 	if err != nil {
-		log.Printf("Error while refreshing block template on %s: %s", rpc.Name, err)
+		log.Printf("获取区块信息失败,矿池连接: %s,错误: %s", rpc.Name, err)
 		return
 	}
 	// No need to update, we have fresh job
@@ -88,9 +88,9 @@ func (s *ProxyServer) fetchBlockTemplate() {
 		}
 	}
 	s.blockTemplate.Store(&newTemplate)
-	log.Printf("New block to mine on %s at height %d / %s", rpc.Name, height, reply[0][0:10])
+	//log.Printf("发送区块到矿池: %s, 区块高度: %d / %s", rpc.Name, height, reply[0][0:10])
 
-	// Stratum
+	// 矿池广播挖矿任务
 	if s.config.Proxy.Stratum.Enabled {
 		go s.broadcastNewJobs()
 	}
@@ -100,17 +100,17 @@ func (s *ProxyServer) fetchPendingBlock() (*rpc.GetBlockReplyPart, uint64, int64
 	rpc := s.rpc()
 	reply, err := rpc.GetPendingBlock()
 	if err != nil {
-		log.Printf("Error while refreshing pending block on %s: %s", rpc.Name, err)
+		log.Printf("获取待确认区块失败,矿池链接: %s,错误: %s", rpc.Name, err)
 		return nil, 0, 0, err
 	}
 	blockNumber, err := strconv.ParseUint(strings.Replace(reply.Number, "0x", "", -1), 16, 64)
 	if err != nil {
-		log.Println("Can't parse pending block number")
+		log.Println("解析区块编号失败")
 		return nil, 0, 0, err
 	}
 	blockDiff, err := strconv.ParseInt(strings.Replace(reply.Difficulty, "0x", "", -1), 16, 64)
 	if err != nil {
-		log.Println("Can't parse pending block difficulty")
+		log.Println("解析区块难度失败")
 		return nil, 0, 0, err
 	}
 	return reply, blockNumber, blockDiff, nil

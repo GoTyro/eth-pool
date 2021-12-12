@@ -82,7 +82,7 @@
 		"endpoint": "127.0.0.1:6379",
 		"poolSize": 10,
 		"database": 0,
-		"password": "jiangjun1984"
+		"password": ""
 	},
 
 	"api": {
@@ -99,9 +99,9 @@
 	},
 
 	"unlocker": {
-		"enabled": false,
+		"enabled": true,
 		"poolFee": 1.0,
-		"poolFeeAddress": "",
+		"poolFeeAddress": "0x5c10fc9c1a8005b49d9f01686f669145e237700e",
 		"depth": 120,
 		"immatureDepth": 20,
 		"keepTxFees": false,
@@ -111,12 +111,12 @@
 	},
 
 	"payouts": {
-		"enabled": false,
+		"enabled": true,
 		"requirePeers": 25,
 		"interval": "120m",
 		"daemon": "http://127.0.0.1:8545",
 		"timeout": "10s",
-		"address": "0x0",
+		"address": "0x5c10fc9c1a8005b49d9f01686f669145e237700e",
 		"gas": "21000",
 		"gasPrice": "50000000000",
 		"autoGas": true,

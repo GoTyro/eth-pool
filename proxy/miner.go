@@ -21,7 +21,7 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 
 	h, ok := t.headers[hashNoNonce]
 	if !ok {
-		log.Printf("Stale share from %v@%v", login, ip)
+		log.Printf("矿工提交延迟份额,账户: %v,IP: %v", login, ip)
 		return false, false
 	}
 
@@ -48,9 +48,9 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 	if hasher.Verify(block) {
 		ok, err := s.rpc().SubmitBlock(params)
 		if err != nil {
-			log.Printf("Block submission failure at height %v for %v: %v", h.height, t.Header, err)
+			log.Printf("区块提交失败,区块: %v,Header: %v,详情: %v", h.height, t.Header, err)
 		} else if !ok {
-			log.Printf("Block rejected at height %v for %v", h.height, t.Header)
+			log.Printf("区块提交被拒绝,区块: %v,Header: %v", h.height, t.Header)
 			return false, false
 		} else {
 			s.fetchBlockTemplate()
@@ -59,11 +59,11 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 				return true, false
 			}
 			if err != nil {
-				log.Println("Failed to insert block candidate into backend:", err)
+				log.Println("区块candidate信息保存失败,详情: %v", err)
 			} else {
-				log.Printf("Inserted block %v to backend", h.height)
+				log.Printf("保存区块信息到数据库,区块: %v", h.height)
 			}
-			log.Printf("Block found by miner %v@%v at height %d", login, ip, h.height)
+			log.Printf("发现新区块,矿工: %v,IP: %v,高度: %d", login, ip, h.height)
 		}
 	} else {
 		exist, err := s.backend.WriteShare(login, id, params, shareDiff, h.height, s.hashrateExpiration)
@@ -71,7 +71,7 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 			return true, false
 		}
 		if err != nil {
-			log.Println("Failed to insert share data into backend:", err)
+			log.Println("区块份额信息保存失败,详情: %v", err)
 		}
 	}
 	return false, true
