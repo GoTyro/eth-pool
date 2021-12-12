@@ -155,7 +155,7 @@ func (s *PolicyServer) refreshState() {
 	if err != nil {
 		log.Printf("获取白名单IP列表失败,错误: %v", err)
 	}
-	log.Println("IP黑白名单策略刷新成功")
+	//log.Println("IP黑白名单策略刷新成功")
 }
 
 func (s *PolicyServer) NewStats() *Stats {

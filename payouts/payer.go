@@ -160,12 +160,12 @@ func (u *PayoutsProcessor) process() {
 			u.lastFail = err
 			break
 		}
-		log.Printf("锁定支付账户失败,账户: %s,余额: %v", login, amount)
+		log.Printf("锁定支付账户失败,账户: %s,金额: %v", login, amount)
 
 		// Debit miner's balance and update stats
 		err = u.backend.UpdateBalance(login, amount)
 		if err != nil {
-			log.Printf("更新账户余额失败,账户: %s,余额: %v,详情: %v", login, amount, err)
+			log.Printf("更新账户余额失败,账户: %s,金额: %v,详情: %v", login, amount, err)
 			u.halt = true
 			u.lastFail = err
 			break
@@ -192,21 +192,21 @@ func (u *PayoutsProcessor) process() {
 
 		minersPaid++
 		totalAmount.Add(totalAmount, big.NewInt(amount))
-		log.Printf("Paid %v Shannon to %v, TxHash: %v", amount, login, txHash)
+		log.Printf("给账户: %v,支付: %v,TxHash: %v", login, amount, txHash)
 
 		// Wait for TX confirmation before further payouts
 		for {
-			log.Printf("Waiting for tx confirmation: %v", txHash)
+			log.Printf("已支付,待区块确认,TxHash: %v", txHash)
 			time.Sleep(txCheckInterval)
 			receipt, err := u.rpc.GetTxReceipt(txHash)
 			if err != nil {
-				log.Printf("Failed to get tx receipt for %v: %v", txHash, err)
+				log.Printf("获取区块确认信息失败,TxHash: %v,详情: %v", txHash, err)
 				continue
 			}
 			// Tx has been mined
 			if receipt != nil && receipt.Confirmed() {
 				if receipt.Successful() {
-					log.Printf("Payout tx successful for %s: %s", login, txHash)
+					log.Printf("支付成功,账户: %s,TxHash: %s", login, txHash)
 				} else {
 					log.Printf("Payout tx failed for %s: %s. Address contract throws on incoming tx.", login, txHash)
 				}
@@ -216,7 +216,7 @@ func (u *PayoutsProcessor) process() {
 	}
 
 	if mustPay > 0 {
-		log.Printf("Paid total %v Shannon to %v of %v payees", totalAmount, minersPaid, mustPay)
+		log.Printf("现有 %v 个账户,待支付 %v 个,金额 %v", mustPay, minersPaid, totalAmount)
 	} else {
 		log.Println("没有待转账的账户")
 	}

@@ -131,7 +131,7 @@ func (u *BlockUnlocker) unlockCandidates(candidates []*storage.BlockData) (*Unlo
 					return nil, err
 				}
 				result.maturedBlocks = append(result.maturedBlocks, candidate)
-				log.Printf("成熟区块: %v,已有 %v 个交易,hash: %v", candidate.Height, len(block.Transactions), candidate.Hash[0:10])
+				log.Printf("成熟区块,高度: %v,已有 %v 个交易,hash: %v", candidate.Height, len(block.Transactions), candidate.Hash[0:10])
 				break
 			}
 
@@ -378,10 +378,10 @@ func (u *BlockUnlocker) unlockAndCreditMiners() {
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Failed to unlock blocks: %v", err)
+		log.Printf("解锁区块失败,详情: %v", err)
 		return
 	}
-	log.Printf("Unlocked %v blocks, %v uncles, %v orphans", result.blocks, result.uncles, result.orphans)
+	log.Printf("本次解锁 %v 个区块,%v 个叔块,%v 个孤块", result.blocks, result.uncles, result.orphans)
 
 	for _, block := range result.orphanedBlocks {
 		err = u.backend.WriteOrphan(block)
