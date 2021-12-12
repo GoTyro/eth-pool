@@ -242,6 +242,7 @@ func handleUncle(height int64, uncle *rpc.GetBlockReply, candidate *storage.Bloc
 	return nil
 }
 
+//处理待解锁块
 func (u *BlockUnlocker) unlockPendingBlocks() {
 	if u.halt {
 		log.Println("区块解锁程序出错,任务已暂停,详情: %v", u.lastFail)
@@ -283,43 +284,44 @@ func (u *BlockUnlocker) unlockPendingBlocks() {
 		log.Printf("解锁区块失败,详情: %v", err)
 		return
 	}
-	log.Printf("Immature %v blocks, %v uncles, %v orphans", result.blocks, result.uncles, result.orphans)
+	log.Printf("本次解锁 %v 个区块,%v 个叔块,%v 个孤块", result.blocks, result.uncles, result.orphans)
 
 	err = u.backend.WritePendingOrphans(result.orphanedBlocks)
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Failed to insert orphaned blocks into backend: %v", err)
+		log.Printf("孤块信息保存失败,详情: %v", err)
 		return
 	} else {
-		log.Printf("Inserted %v orphaned blocks to backend", result.orphans)
+		log.Printf("保存孤块信息到数据库,数量: %v", result.orphans)
 	}
 
 	totalRevenue := new(big.Rat)
 	totalMinersProfit := new(big.Rat)
 	totalPoolProfit := new(big.Rat)
 
+	//处理成熟区块
 	for _, block := range result.maturedBlocks {
 		revenue, minersProfit, poolProfit, roundRewards, err := u.calculateRewards(block)
 		if err != nil {
 			u.halt = true
 			u.lastFail = err
-			log.Printf("Failed to calculate rewards for round %v: %v", block.RoundKey(), err)
+			log.Printf("计算区块奖励失败,区块: %v,详情: %v", block.RoundKey(), err)
 			return
 		}
 		err = u.backend.WriteImmatureBlock(block, roundRewards)
 		if err != nil {
 			u.halt = true
 			u.lastFail = err
-			log.Printf("Failed to credit rewards for round %v: %v", block.RoundKey(), err)
+			log.Printf("保存区块奖励失败,区块: %v,详情: %v", block.RoundKey(), err)
 			return
 		}
 		totalRevenue.Add(totalRevenue, revenue)
 		totalMinersProfit.Add(totalMinersProfit, minersProfit)
 		totalPoolProfit.Add(totalPoolProfit, poolProfit)
 
-		logEntry := fmt.Sprintf(
-			"IMMATURE %v: revenue %v, miners profit %v, pool profit: %v",
+		/*logEntry := fmt.Sprintf(
+			"Pending块: IMMATURE %v: revenue %v, miners profit %v, pool profit: %v",
 			block.RoundKey(),
 			util.FormatRatReward(revenue),
 			util.FormatRatReward(minersProfit),
@@ -329,20 +331,21 @@ func (u *BlockUnlocker) unlockPendingBlocks() {
 		for login, reward := range roundRewards {
 			entries = append(entries, fmt.Sprintf("\tREWARD %v: %v: %v Shannon", block.RoundKey(), login, reward))
 		}
-		log.Println(strings.Join(entries, "\n"))
+		log.Println(strings.Join(entries, "\n"))*/
 	}
 
-	log.Printf(
-		"IMMATURE SESSION: revenue %v, miners profit %v, pool profit: %v",
+	/*log.Printf(
+		"Pending块: IMMATURE SESSION: revenue %v, miners profit %v, pool profit: %v",
 		util.FormatRatReward(totalRevenue),
 		util.FormatRatReward(totalMinersProfit),
 		util.FormatRatReward(totalPoolProfit),
-	)
+	)*/
 }
 
+//处理候选块(未成熟)
 func (u *BlockUnlocker) unlockAndCreditMiners() {
 	if u.halt {
-		log.Println("Unlocking suspended due to last critical error:", u.lastFail)
+		log.Println("候选块解锁程序出错,任务已暂停,详情: %v", u.lastFail)
 		return
 	}
 
@@ -350,14 +353,14 @@ func (u *BlockUnlocker) unlockAndCreditMiners() {
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Unable to get current blockchain height from node: %v", err)
+		log.Printf("获取当前候选块高度失败,详情: %v", err)
 		return
 	}
 	currentHeight, err := strconv.ParseInt(strings.Replace(current.Number, "0x", "", -1), 16, 64)
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Can't parse pending block number: %v", err)
+		log.Printf("获取候选块高度失败,详情: %v", err)
 		return
 	}
 
@@ -365,12 +368,12 @@ func (u *BlockUnlocker) unlockAndCreditMiners() {
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("Failed to get block candidates from backend: %v", err)
+		log.Printf("获取候选块失败,详情: %v", err)
 		return
 	}
 
 	if len(immature) == 0 {
-		log.Println("No immature blocks to credit miners")
+		log.Println("没有待解锁的候选块")
 		return
 	}
 
@@ -378,21 +381,21 @@ func (u *BlockUnlocker) unlockAndCreditMiners() {
 	if err != nil {
 		u.halt = true
 		u.lastFail = err
-		log.Printf("解锁区块失败,详情: %v", err)
+		log.Printf("候选块解锁失败,详情: %v", err)
 		return
 	}
-	log.Printf("本次解锁 %v 个区块,%v 个叔块,%v 个孤块", result.blocks, result.uncles, result.orphans)
+	log.Printf("本次解锁 %v 个候选块,%v 个叔块,%v 个孤块", result.blocks, result.uncles, result.orphans)
 
 	for _, block := range result.orphanedBlocks {
 		err = u.backend.WriteOrphan(block)
 		if err != nil {
 			u.halt = true
 			u.lastFail = err
-			log.Printf("Failed to insert orphaned block into backend: %v", err)
+			log.Printf("孤块信息保存失败,详情: %v", err)
 			return
 		}
 	}
-	log.Printf("Inserted %v orphaned blocks to backend", result.orphans)
+	log.Printf("保存孤块信息到数据库,数量: %v", result.orphans)
 
 	totalRevenue := new(big.Rat)
 	totalMinersProfit := new(big.Rat)
@@ -403,22 +406,22 @@ func (u *BlockUnlocker) unlockAndCreditMiners() {
 		if err != nil {
 			u.halt = true
 			u.lastFail = err
-			log.Printf("Failed to calculate rewards for round %v: %v", block.RoundKey(), err)
+			log.Printf("计算候选块奖励失败,区块: %v,详情: %v", block.RoundKey(), err)
 			return
 		}
 		err = u.backend.WriteMaturedBlock(block, roundRewards)
 		if err != nil {
 			u.halt = true
 			u.lastFail = err
-			log.Printf("Failed to credit rewards for round %v: %v", block.RoundKey(), err)
+			log.Printf("保存候选块奖励失败,区块: %v,详情: %v", block.RoundKey(), err)
 			return
 		}
 		totalRevenue.Add(totalRevenue, revenue)
 		totalMinersProfit.Add(totalMinersProfit, minersProfit)
 		totalPoolProfit.Add(totalPoolProfit, poolProfit)
 
-		logEntry := fmt.Sprintf(
-			"MATURED %v: revenue %v, miners profit %v, pool profit: %v",
+		/*logEntry := fmt.Sprintf(
+			"候选块: MATURED %v: revenue %v, miners profit %v, pool profit: %v",
 			block.RoundKey(),
 			util.FormatRatReward(revenue),
 			util.FormatRatReward(minersProfit),
@@ -428,15 +431,15 @@ func (u *BlockUnlocker) unlockAndCreditMiners() {
 		for login, reward := range roundRewards {
 			entries = append(entries, fmt.Sprintf("\tREWARD %v: %v: %v Shannon", block.RoundKey(), login, reward))
 		}
-		log.Println(strings.Join(entries, "\n"))
+		log.Println(strings.Join(entries, "\n"))*/
 	}
 
-	log.Printf(
-		"MATURE SESSION: revenue %v, miners profit %v, pool profit: %v",
+	/*log.Printf(
+		"候选块: MATURE SESSION: revenue %v, miners profit %v, pool profit: %v",
 		util.FormatRatReward(totalRevenue),
 		util.FormatRatReward(totalMinersProfit),
 		util.FormatRatReward(totalPoolProfit),
-	)
+	)*/
 }
 
 func (u *BlockUnlocker) calculateRewards(block *storage.BlockData) (*big.Rat, *big.Rat, *big.Rat, map[string]int64, error) {
