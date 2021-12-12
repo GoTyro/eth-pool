@@ -61,7 +61,7 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 			if err != nil {
 				log.Println("区块candidate信息保存失败,详情: %v", err)
 			} else {
-				log.Printf("保存区块信息到数据库,区块: %v", h.height)
+				//log.Printf("保存区块信息到数据库,区块: %v", h.height)
 			}
 			log.Printf("发现新区块,矿工: %v,IP: %v,高度: %d", login, ip, h.height)
 		}
